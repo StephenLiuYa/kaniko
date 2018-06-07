@@ -24,6 +24,7 @@ const (
 // Registry stores a docker registry name in a structured form.
 type Registry struct {
 	registry string
+	Scheme   string
 }
 
 // RegistryStr returns the registry component of the Registry.

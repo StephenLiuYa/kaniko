@@ -1,7 +1,7 @@
 /*
 Copyright 2018 Google LLC
-
 Licensed under the Apache License, Version 2.0 (the "License");
+
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -18,6 +18,7 @@ package executor
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 
 	"io/ioutil"
@@ -178,14 +180,9 @@ func DoPush(ref name.Reference, image v1.Image, destinations []string, tarPath s
 	// continue pushing unless an error occurs
 	for _, destination := range destinations {
 		// Push the image
-		destRef, err := name.NewTag(destination, name.WeakValidation)
-		if err != nil {
-			return err
-		}
+		var destRef name.Reference
 
-		if tarPath != "" {
-			return tarball.WriteToFile(tarPath, destRef, image, nil)
-		}
+		destRef = ref
 
 		pushAuth, err := authn.DefaultKeychain.Resolve(destRef.Context().Registry)
 		if err != nil {
@@ -193,7 +190,14 @@ func DoPush(ref name.Reference, image v1.Image, destinations []string, tarPath s
 		}
 
 		wo := remote.WriteOptions{}
-		err = remote.Write(destRef, image, pushAuth, http.DefaultTransport, wo)
+
+		tr := http.DefaultTransport
+		tr, destRef, err = setInsecureRegistry(tr, destRef)
+		if err != nil {
+			return err
+		}
+
+		err = remote.Write(destRef, image, pushAuth, tr, wo)
 		if err != nil {
 			logrus.Error(fmt.Errorf("Failed to push to destination %s", destination))
 			return err
@@ -239,6 +243,7 @@ func saveStageDependencies(index int, stages []instructions.Stage, buildArgs *do
 }
 
 func getHasher(snapshotMode string) (func(string) (string, error), error) {
+
 	if snapshotMode == constants.SnapshotModeTime {
 		logrus.Info("Only file modification time will be considered when snapshotting")
 		return util.MtimeHasher(), nil
@@ -265,4 +270,35 @@ func resolveOnBuild(stage *instructions.Stage, config *v1.Config) error {
 	// Blank out the Onbuild command list for this image
 	config.OnBuild = nil
 	return nil
+}
+
+func setInsecureRegistry(tr http.RoundTripper, destRef name.Reference) (http.RoundTripper, name.Reference, error) {
+	tr.(*http.Transport).TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	// Ping registry and set Scheme if registry runs over HTTP.
+	client := http.Client{Transport: tr}
+	url := fmt.Sprintf("%s://%s/v2/", transport.Scheme(destRef.Context().Registry), destRef.Context().Registry.Name())
+	_, err := client.Get(url)
+	if err == nil {
+		return tr, destRef, nil
+	}
+
+	switch destRef.(type) {
+	case name.Tag:
+		ref := destRef.(name.Tag)
+		ref.Registry.Scheme = "http"
+		destRef = ref
+	case name.Digest:
+		ref := destRef.(name.Digest)
+		ref.Registry.Scheme = "http"
+		destRef = ref
+	default:
+		return tr, destRef, err
+	}
+
+	url = fmt.Sprintf("%s://%s/v2/", transport.Scheme(destRef.Context().Registry), destRef.Context().Registry.Name())
+	_, err = client.Get(url)
+	return tr, destRef, err
 }

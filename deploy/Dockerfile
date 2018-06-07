@@ -18,6 +18,7 @@ FROM golang:1.10
 WORKDIR /go/src/github.com/GoogleContainerTools/kaniko
 COPY . .
 RUN make
+
 # Get GCR credential helper
 ADD https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v1.4.3-static/docker-credential-gcr_linux_amd64-1.4.3.tar.gz /usr/local/bin/
 RUN tar -C /usr/local/bin/ -xvzf /usr/local/bin/docker-credential-gcr_linux_amd64-1.4.3.tar.gz
@@ -25,9 +26,13 @@ RUN tar -C /usr/local/bin/ -xvzf /usr/local/bin/docker-credential-gcr_linux_amd6
 RUN go get -u github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cli/docker-credential-ecr-login
 RUN make -C /go/src/github.com/awslabs/amazon-ecr-credential-helper linux-amd64
 
+COPY files/docker-credential-osxkeychain-v0.6.0-amd64.tar.gz /usr/local/bin/
+RUN tar -C /usr/local/bin/ -xvzf /usr/local/bin/docker-credential-osxkeychain-v0.6.0-amd64.tar.gz
+
 FROM scratch
 COPY --from=0 /go/src/github.com/GoogleContainerTools/kaniko/out/executor /kaniko/executor
 COPY --from=0 /usr/local/bin/docker-credential-gcr /kaniko/docker-credential-gcr
+COPY --from=0 /usr/local/bin/docker-credential-osxkeychain /kaniko/docker-credential-osxkeychain
 COPY --from=0 /go/src/github.com/awslabs/amazon-ecr-credential-helper/bin/linux-amd64/docker-credential-ecr-login /kaniko/docker-credential-ecr-login
 COPY files/ca-certificates.crt /kaniko/ssl/certs/
 COPY files/config.json /kaniko/.docker/

@@ -50,7 +50,7 @@ func init() {
 	RootCmd.MarkPersistentFlagRequired("destination")
 	RootCmd.PersistentFlags().StringVarP(&snapshotMode, "snapshotMode", "", "full", "Set this flag to change the file attributes inspected during snapshotting")
 	RootCmd.PersistentFlags().VarP(&buildArgs, "build-arg", "", "This flag allows you to pass in ARG values at build time. Set it repeatedly for multiple values.")
-	RootCmd.PersistentFlags().BoolVarP(&dockerInsecureSkipTLSVerify, "insecure-skip-tls-verify", "", false, "Push to insecure registry ignoring TLS verify")
+	RootCmd.PersistentFlags().BoolVarP(&dockerInsecureSkipTLSVerify, "insecure-skip-tls-verify", "", true, "Push to insecure registry ignoring TLS verify")
 	RootCmd.PersistentFlags().StringVarP(&logLevel, "verbosity", "v", constants.DefaultLogLevel, "Log level (debug, info, warn, error, fatal, panic")
 	RootCmd.PersistentFlags().BoolVarP(&force, "force", "", false, "Force building outside of a container")
 	RootCmd.PersistentFlags().StringVarP(&tarPath, "tarPath", "", "", "Path to save the image in as a tarball instead of pushing")
